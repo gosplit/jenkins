@@ -32,6 +32,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.security.KeyPair;
 import java.security.PublicKey;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -46,6 +47,7 @@ import org.apache.sshd.client.keyverifier.DefaultKnownHostsServerKeyVerifier;
 import org.apache.sshd.client.keyverifier.KnownHostsServerKeyVerifier;
 import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 import org.apache.sshd.client.session.ClientSession;
+import org.apache.sshd.common.PropertyResolverUtils;
 import org.apache.sshd.common.future.WaitableFuture;
 import org.apache.sshd.common.util.io.NoCloseInputStream;
 import org.apache.sshd.common.util.io.NoCloseOutputStream;
@@ -81,12 +83,29 @@ class SSHCLI {
 
         StringBuilder command = new StringBuilder();
 
-        for (String arg : args) {
-            command.append(QuotedStringTokenizer.quote(arg));
+        List<String> sshclientPropertyNames = new ArrayList<String>();
+        List<String> sshclientPropertyValues = new ArrayList<String>();
+        for (int i=0; i<args.size(); i++) {
+			if (args.get(i).equals("-sshprop") && ((i + 1) < args.size())) {
+				String argValue = args.get(i + 1);
+				int equalIndex = argValue.indexOf("=");
+				if (equalIndex >= 1) {
+					sshclientPropertyNames.add(argValue.substring(0, equalIndex));
+					sshclientPropertyValues.add(argValue.substring(equalIndex + 1, argValue.length()));
+					i++;
+					continue;
+				}
+			}
+
+            command.append(QuotedStringTokenizer.quote(args.get(i)));
             command.append(' ');
         }
 
         try(SshClient client = SshClient.setUpDefaultClient()) {
+			for (int i = 0; i < sshclientPropertyNames.size(); i++) {
+				PropertyResolverUtils.updateProperty(client, sshclientPropertyNames.get(i),
+						sshclientPropertyValues.get(i));
+			}
 
             KnownHostsServerKeyVerifier verifier = new DefaultKnownHostsServerKeyVerifier(new ServerKeyVerifier() {
                 @Override
